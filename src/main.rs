@@ -1,7 +1,11 @@
+use anyhow::bail;
 use minreq::get;
 use std::fs::write;
-use std::env;
+use std::thread::sleep;
+use std::time::Duration;
+use std::{any, env};
 use std::path::PathBuf;
+use anyhow::anyhow;
 use std::process::Command;
 use chrono::prelude::*;
 use chrono_tz::Europe::Paris;
@@ -21,10 +25,9 @@ fn is_gsettings_available() -> bool {
         .unwrap_or(false)
 }
 
-fn set_gnome_background(path: PathBuf) -> Result<(), String> {
-    let uri = format!("file://{}", path.canonicalize().map_err(|e| e.to_string())?.display());
+fn set_gnome_background(path: PathBuf) -> anyhow::Result<()> {
+    let uri = format!("file://{}", path.canonicalize()?.display());
 
-    // Commands to run
     let commands = [
         ("org.gnome.desktop.background", "picture-uri", &uri),
         ("org.gnome.desktop.background", "picture-uri-dark", &uri),
@@ -34,13 +37,10 @@ fn set_gnome_background(path: PathBuf) -> Result<(), String> {
         let status = Command::new("gsettings")
             .args(["set", schema, key, value])
             .status()
-            .map_err(|e| format!("Failed to run gsettings: {}", e))?;
+            .map_err(|e| anyhow!("Failed to execute gsettings command: {}", e))?;
 
         if !status.success() {
-            return Err(format!(
-                "gsettings set failed for {} {} {}",
-                schema, key, value
-            ));
+            bail!("Failed to set gsettings for {}: {}", schema, key);
         }
     }
 
@@ -48,15 +48,16 @@ fn set_gnome_background(path: PathBuf) -> Result<(), String> {
 }
 
 
-fn set_wallpaper(path: PathBuf) {
+fn set_wallpaper(path: PathBuf) -> anyhow::Result<()> {
     if is_gsettings_available() {
-        set_gnome_background(path).expect("Failed to set GNOME background");
+        set_gnome_background(path)
     } else {
-        wallpaper::set_from_path(path.to_str().unwrap()).expect("Failed to set wallpaper");
+        let path = path.to_str().ok_or_else(|| anyhow!("Invalid path"))?;
+        wallpaper::set_from_path(path).map_err(|e| anyhow!("Failed to set wallpaper: {}", e))
     }
 }
 
-fn main() {
+fn update_wallpaper() -> anyhow::Result<()> {
     let now_paris = Utc::now().with_timezone(&Paris);
 
     let url = format!(
@@ -69,17 +70,38 @@ fn main() {
     );
 
     println!("Downloading image from: {}", url);
-
-    let req = get(url).send().unwrap();
+    let req = get(url).send().map_err(|e| anyhow!("Failed to send request: {}", e))?;
     if req.status_code != 200 {
-        panic!("Failed to download image: {}", req.status_code);
+        bail!("Failed to download image: HTTP {}", req.status_code);
     }
+
     let body = req.as_bytes();
-    write("image.jpg", body).expect("Unable to write file");
+    let path = std::env::current_dir().unwrap().join("image.jpg");
+    write(&path, body).map_err(|e| anyhow!("Failed to write image to file: {}", e))?;
+    println!("Image downloaded to: {}", path.display());
 
-    let full_path = std::env::current_dir().unwrap().join("image.jpg");
-    println!("Image downloaded to: {}", full_path.display());
+    set_wallpaper(path.clone())
+}
 
-    set_wallpaper(full_path.clone());
+fn main() {
+    loop {
+        match update_wallpaper() {
+            Ok(_) => {
+                println!("Wallpaper updated successfully.");
+            }
+            Err(e) => {
+                eprintln!("Error updating wallpaper: {}", e);
+            }
+        }
 
+        // Sleep until the next minute is a multiple of 10
+        let now = Utc::now().with_timezone(&Paris);
+        let to_sleep = Duration::from_secs(
+            (10 - (now.minute() as u64 % 10)) * 60  // The amount of minutes remaining
+            + (60 - now.second() as u64)            // The amount of seconds remaining
+            + 75                                    // Constant offset to ensure we don't hit too early
+        );
+        println!("Sleeping for {} seconds until the next update...", to_sleep.as_secs());
+        sleep(to_sleep);
+    }
 }
