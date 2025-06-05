@@ -3,6 +3,8 @@ use std::fs::write;
 use std::env;
 use std::path::PathBuf;
 use std::process::Command;
+use chrono::prelude::*;
+use chrono_tz::Europe::Paris;
 
 fn is_gsettings_available() -> bool {
     env::var("PATH")
@@ -55,7 +57,19 @@ fn set_wallpaper(path: PathBuf) {
 }
 
 fn main() {
-    let url = "https://data.skaping.com/amboise-quais-de-loire/photo/2025/06/05/22-10.jpg";
+    let now_paris = Utc::now().with_timezone(&Paris);
+
+    let url = format!(
+        "https://data.skaping.com/amboise-quais-de-loire/photo/{}/{:02}/{:02}/{:02}-{:02}.jpg",
+        now_paris.year(),
+        now_paris.month(),
+        now_paris.day(),
+        now_paris.hour(),
+        (now_paris.minute() / 10) * 10
+    );
+
+    println!("Downloading image from: {}", url);
+
     let req = get(url).send().unwrap();
     if req.status_code != 200 {
         panic!("Failed to download image: {}", req.status_code);
