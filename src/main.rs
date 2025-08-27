@@ -1,4 +1,5 @@
 use anyhow::bail;
+use auto_launch::AutoLaunch;
 use minreq::get;
 use std::fs::write;
 use std::thread::sleep;
@@ -84,6 +85,11 @@ fn update_wallpaper() -> anyhow::Result<()> {
 }
 
 fn main() {
+    let app_name = "realtime-background";
+    let app_path = env::current_exe().unwrap();
+    let auto = AutoLaunch::new(app_name, app_path.to_str().unwrap(), &[] as &[&str]);
+    auto.enable().expect("Failed to enable auto-launch");
+
     loop {
         match update_wallpaper() {
             Ok(_) => {
