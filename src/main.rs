@@ -1,4 +1,4 @@
-use anyhow::bail;
+use anyhow::{Context, bail};
 use auto_launch::AutoLaunch;
 use minreq::get;
 use std::fs::write;
@@ -71,12 +71,28 @@ fn update_wallpaper() -> anyhow::Result<()> {
     );
 
     println!("Downloading image from: {}", url);
-    let req = get(url).send().map_err(|e| anyhow!("Failed to send request: {}", e))?;
-    if req.status_code != 200 {
-        bail!("Failed to download image: HTTP {}", req.status_code);
-    }
+    let mut attempts = 0;
+    let rep = loop {
+        let rep = get(&url).send().context("Failed to send request")?;
 
-    let body = req.as_bytes();
+        if rep.status_code == 200 {
+            break rep;
+        }
+
+        if rep.status_code == 403 {
+            attempts += 1;
+            if attempts >= 10 {
+                bail!("Received 403 Forbidden after {} attempts", attempts);
+            }
+            println!("Received 403 Forbidden, retrying in 60 seconds...");
+            sleep(Duration::from_secs(60));
+            continue;
+        }
+
+        bail!("Failed to download image: HTTP {}", rep.status_code);
+    };
+
+    let body = rep.as_bytes();
     let path = std::env::current_dir().unwrap().join("image.jpg");
     write(&path, body).map_err(|e| anyhow!("Failed to write image to file: {}", e))?;
     println!("Image downloaded to: {}", path.display());
@@ -100,14 +116,7 @@ fn main() {
             }
         }
 
-        // Sleep until the next minute is a multiple of 10
-        let now = Utc::now().with_timezone(&Paris);
-        let to_sleep = Duration::from_secs(
-            (10 - (now.minute() as u64 % 10)) * 60  // The amount of minutes remaining
-            + (60 - now.second() as u64)            // The amount of seconds remaining
-            + 75                                    // Constant offset to ensure we don't hit too early
-        );
-        println!("Sleeping for {} seconds until the next update...", to_sleep.as_secs());
-        sleep(to_sleep);
+        println!("Sleeping 10 minutes");
+        sleep(Duration::from_secs(600));
     }
 }
