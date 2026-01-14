@@ -4,7 +4,7 @@ use minreq::get;
 use std::fs::write;
 use std::thread::sleep;
 use std::time::Duration;
-use std::{any, env};
+use std::env;
 use std::path::PathBuf;
 use anyhow::anyhow;
 use std::process::Command;
