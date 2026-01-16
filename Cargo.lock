@@ -465,11 +465,9 @@ name = "realtime-background-backend"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "auto-launch",
  "chrono",
  "chrono-tz",
  "minreq",
- "wallpaper",
 ]
 
 [[package]]

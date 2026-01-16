@@ -37,15 +37,36 @@ fn update_wallpaper(date: DateTime<Tz>) -> AnyResult<()> {
 }
 
 fn main() {
+    let mut latest_success = DateTime::UNIX_EPOCH.with_timezone(&Paris);
     loop {
-        let now_paris = Utc::now().with_timezone(&Paris);
+        let mut current = Utc::now().with_timezone(&Paris);
 
-        match update_wallpaper(now_paris) {
-            Ok(_) => println!("Wallpaper updated successfully."),
-            Err(e) => eprintln!("Error updating wallpaper: {}", e),
+        loop {
+            if current <= latest_success {
+                println!("Image already available");
+                break;
+            }
+
+            match update_wallpaper(current) {
+                Ok(_) => {
+                    println!("Image updated successfully!");
+                    latest_success = current;
+                    break;
+                },
+                Err(e) if e.to_string() == "Image not available" => {
+                    println!("Image not yet available. Trying previous image.");
+                    current -= chrono::Duration::minutes(10);
+                    sleep(Duration::from_secs(5));
+                    continue;
+                }
+                Err(e) => {
+                    println!("Error updating image: {e}. Aborting this cycle.");
+                    break;
+                },
+            }
         }
 
-        println!("Sleeping 8 minutes"); // Not ten, because if we are lagging behind we want to catch up
-        sleep(Duration::from_secs(480));
+        println!("Sleeping 10 minutes");
+        sleep(Duration::from_secs(600));
     }
 }
