@@ -81,7 +81,7 @@ fn update_wallpaper() -> anyhow::Result<()> {
 
         if rep.status_code == 403 {
             attempts += 1;
-            if attempts >= 10 {
+            if attempts >= 20 {
                 bail!("Received 403 Forbidden after {} attempts", attempts);
             }
             println!("Received 403 Forbidden, retrying in 60 seconds...");
@@ -108,15 +108,11 @@ fn main() {
 
     loop {
         match update_wallpaper() {
-            Ok(_) => {
-                println!("Wallpaper updated successfully.");
-            }
-            Err(e) => {
-                eprintln!("Error updating wallpaper: {}", e);
-            }
+            Ok(_) => println!("Wallpaper updated successfully."),
+            Err(e) => eprintln!("Error updating wallpaper: {}", e),
         }
 
-        println!("Sleeping 10 minutes");
-        sleep(Duration::from_secs(600));
+        println!("Sleeping 8 minutes"); // Not ten, because if we are lagging behind we want to catch up
+        sleep(Duration::from_secs(480));
     }
 }
