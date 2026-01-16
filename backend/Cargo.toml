@@ -1,6 +1,12 @@
 [package]
-name = "backend"
+name = "realtime-background-backend"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1.0"
+chrono = "0.4"
+chrono-tz = "0.10"
+minreq = { version = "2.14", features = ["https-native"] }
+wallpaper = "3.2"
+auto-launch = "0.5"
