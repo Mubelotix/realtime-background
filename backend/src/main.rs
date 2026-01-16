@@ -7,18 +7,20 @@ use anyhow::{Context, bail, anyhow, Result as AnyResult};
 use chrono::prelude::*;
 use chrono_tz::Europe::Paris;
 
-fn update_wallpaper(date: DateTime<Tz>) -> AnyResult<()> {
-    let url = format!(
+fn get_url(date: DateTime<Tz>) -> String {
+    format!(
         "https://data.skaping.com/amboise-quais-de-loire/photo/{}/{:02}/{:02}/{:02}-{:02}.jpg",
         date.year(),
         date.month(),
         date.day(),
         date.hour(),
         (date.minute() / 10) * 10
-    );
+    )
+}
 
+fn download_image(url: &str) -> AnyResult<()> {
     println!("Downloading image from: {}", url);
-    let rep = get(&url).send().context("Failed to send request")?;
+    let rep = get(url).send().context("Failed to send request")?;
 
     if rep.status_code == 403 || rep.status_code == 404 {
         bail!("Image not available");
@@ -37,20 +39,21 @@ fn update_wallpaper(date: DateTime<Tz>) -> AnyResult<()> {
 }
 
 fn main() {
-    let mut latest_success = DateTime::UNIX_EPOCH.with_timezone(&Paris);
+    let mut latest_success_url = String::new();
     loop {
         let mut current = Utc::now().with_timezone(&Paris);
 
         loop {
-            if current <= latest_success {
+            let current_url = get_url(current);
+            if current_url <= latest_success_url {
                 println!("Image already available");
                 break;
             }
 
-            match update_wallpaper(current) {
+            match download_image(&current_url) {
                 Ok(_) => {
                     println!("Image updated successfully!");
-                    latest_success = current;
+                    latest_success_url = current_url;
                     break;
                 },
                 Err(e) if e.to_string() == "Image not available" => {
@@ -66,7 +69,7 @@ fn main() {
             }
         }
 
-        println!("Sleeping 10 minutes");
-        sleep(Duration::from_secs(600));
+        println!("Sleeping 60 seconds");
+        sleep(Duration::from_secs(60));
     }
 }
