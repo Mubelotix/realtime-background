@@ -1,15 +1,11 @@
-use anyhow::{Context, bail};
+use anyhow::{Context, bail, anyhow, Result as AnyResult};
 use auto_launch::AutoLaunch;
-use minreq::get;
 use std::fs::write;
 use std::thread::sleep;
 use std::time::Duration;
 use std::env;
 use std::path::PathBuf;
-use anyhow::anyhow;
 use std::process::Command;
-use chrono::prelude::*;
-use chrono_tz::Europe::Paris;
 
 fn is_gsettings_available() -> bool {
     env::var("PATH")
@@ -58,46 +54,38 @@ fn set_wallpaper(path: PathBuf) -> anyhow::Result<()> {
     }
 }
 
-fn update_wallpaper() -> anyhow::Result<()> {
-    let now_paris = Utc::now().with_timezone(&Paris);
+fn update_image(last_date: String, last_etag: String) -> AnyResult<Option<(String, String, String)>> {
+    let rep = minreq::get("https://amboise.dera.page")
+        .with_header("If-Modified-Since", last_date.as_str())
+        .with_header("If-None-Match", last_etag.as_str())
+        .send()
+        .context("Failed to send request")?;
 
-    let url = format!(
-        "https://data.skaping.com/amboise-quais-de-loire/photo/{}/{:02}/{:02}/{:02}-{:02}.jpg",
-        now_paris.year(),
-        now_paris.month(),
-        now_paris.day(),
-        now_paris.hour(),
-        (now_paris.minute() / 10) * 10
-    );
+    if rep.status_code == 304 {
+        return Ok(None);
+    }
 
-    println!("Downloading image from: {}", url);
-    let mut attempts = 0;
-    let rep = loop {
-        let rep = get(&url).send().context("Failed to send request")?;
-
-        if rep.status_code == 200 {
-            break rep;
-        }
-
-        if rep.status_code == 403 {
-            attempts += 1;
-            if attempts >= 20 {
-                bail!("Received 403 Forbidden after {} attempts", attempts);
-            }
-            println!("Received 403 Forbidden, retrying in 60 seconds...");
-            sleep(Duration::from_secs(60));
-            continue;
-        }
-
+    if rep.status_code != 200 {
         bail!("Failed to download image: HTTP {}", rep.status_code);
-    };
+    }
 
     let body = rep.as_bytes();
     let path = std::env::current_dir().unwrap().join("image.jpg");
     write(&path, body).map_err(|e| anyhow!("Failed to write image to file: {}", e))?;
-    println!("Image downloaded to: {}", path.display());
 
-    set_wallpaper(path.clone())
+    let last_modified = rep
+        .headers
+        .get("last-modified")
+        .ok_or_else(|| anyhow!("Missing Last-Modified header"))?
+        .to_string();
+
+    let etag = rep
+        .headers
+        .get("etag")
+        .ok_or_else(|| anyhow!("Missing ETag header"))?
+        .to_string();
+
+    Ok(Some((path.to_string_lossy().to_string(), last_modified, etag)))
 }
 
 fn main() {
@@ -106,13 +94,26 @@ fn main() {
     let auto = AutoLaunch::new(app_name, app_path.to_str().unwrap(), &[] as &[&str]);
     auto.enable().expect("Failed to enable auto-launch");
 
+    let mut last_modified = String::new();
+    let mut etag = String::new();
+
     loop {
-        match update_wallpaper() {
-            Ok(_) => println!("Wallpaper updated successfully."),
+        match update_image(last_modified.clone(), etag.clone()) {
+            Ok(None) => (),
+            Ok(Some((path, new_last_modified, new_etag))) => {
+                println!("Image updated successfully! ({path})");
+
+                last_modified = new_last_modified;
+                etag = new_etag;
+
+                if let Err(e) = set_wallpaper(PathBuf::from(path)) {
+                    eprintln!("Failed to set wallpaper: {}", e);
+                }
+            },
             Err(e) => eprintln!("Error updating wallpaper: {}", e),
         }
 
-        println!("Sleeping 8 minutes"); // Not ten, because if we are lagging behind we want to catch up
-        sleep(Duration::from_secs(480));
+        println!("Sleeping 60 seconds");
+        sleep(Duration::from_secs(60));
     }
 }
