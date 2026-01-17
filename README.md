@@ -1,7 +1,7 @@
 # Amboise-Wallpaper
 
 This project enables you setting a real-time wallpaper based on images provided by a camera located in [Amboise](https://fr.wikipedia.org/wiki/Amboise).
-The camera is filming over the [Loire](https://fr.wikipedia.org/wiki/Loire) towards [the castle](https://fr.wikipedia.org/wiki/Ch%C3%A2teau_d%27Amboise).
+The camera is filming the [Pagode de Chanteloup](https://fr.wikipedia.org/wiki/Ch%C3%A2teau_de_Chanteloup_(Indre-et-Loire)).
 
 ## Backend
 
