@@ -9,4 +9,12 @@ It includes a simple backend that crawls the latest image and updates it on disk
 This offsets complexity for the actual wallpaper-updating apps.
 I am hosting [one public instance](https://amboise.dera.page).
 
-## Desktop program
+## GNOME
+
+```
+cargo install --git https://github.com/Mubelotix/realtime-background realtime-background && realtime-background
+```
+
+## Browsers
+
+Install [the TablissNG extension](https://github.com/BookCatKid/TablissNG). Press the gear icon in the corner to open the settings, choose "Online Image" in the Background category at the top, and paste `https://amboise.dera.page` as the URL.
