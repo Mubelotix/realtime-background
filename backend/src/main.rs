@@ -9,7 +9,7 @@ use chrono_tz::Europe::Paris;
 
 fn get_url(date: DateTime<Tz>) -> String {
     format!(
-        "https://data3.skaping.com/amboise/la-pagode/snap/{}/{:02}/{:02}/{:02}-{:02}.jpg",
+        "https://skaping.s3.gra.io.cloud.ovh.net/amboise/la-pagode/snap/{}/{:02}/{:02}/{:02}-{:02}.jpg",
         date.year(),
         date.month(),
         date.day(),
