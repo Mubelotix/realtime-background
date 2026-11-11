@@ -54,7 +54,23 @@ fn set_wallpaper(path: PathBuf) -> anyhow::Result<()> {
     }
 }
 
+fn is_metered() -> bool {
+    Command::new("nmcli")
+        .env("LC_ALL", "C")
+        .args(["-g", "GENERAL.METERED", "device", "show"])
+        .output()
+        .is_ok_and(|output| {
+            output.status.success() && String::from_utf8_lossy(&output.stdout)
+                .lines().any(|line| matches!(line, "yes" | "yes (guessed)"))
+        })
+}
+
 fn update_image(last_date: String, last_etag: String) -> AnyResult<Option<(String, String, String)>> {
+    if is_metered() {
+        println!("Metered connection; skipping download");
+        return Ok(None);
+    }
+
     let rep = minreq::get("https://amboise.dera.page")
         .with_header("If-Modified-Since", last_date.as_str())
         .with_header("If-None-Match", last_etag.as_str())
